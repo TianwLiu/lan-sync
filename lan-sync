@@ -1,0 +1,93 @@
+#!/bin/bash
+
+#set -uo pipefail 
+#set -x
+sig_int(){
+	if [[ "`ls running`" == ""  ]];then
+		printf "no subprocess running\n, exit as sig_exit\n"
+		exit 0	
+	fi
+	printf "Send TERM to following process:\n"
+	
+
+	pids=`cat running/*`
+	for pid in $pids;do
+		printf "$pid ..."
+		kill -USR1 $pid
+		printf "ok\n"
+	done
+
+	printf "still running  process:\n"
+	for pid in $pids;do
+		ps -p $pid
+		if [[ $? == 0 ]];then
+			printf "$pid "
+		fi
+	done
+	printf "\n"	
+	echo "please check running process"
+	exit	
+}
+
+
+###main entry########
+
+trap sig_int TERM INT USR1 	#systemd default kill signal to stop service
+
+printf "read config ..."
+source /usr/local/etc/lan-sync.conf
+
+
+
+if [[ $? ]] ;then
+	printf "ok\n"
+else
+	printf "no config found, please check\n"
+fi
+
+echo "sync_root:"$sync_root
+if [[ ! -e $sync_root ]];then
+	mkdir -p $sync_root
+fi
+
+cd $sync_root
+echo "watching host:"${hosts[@]}
+printf "service sync running, keep watching ... \n"		
+
+while true
+do
+	mkdir -p running
+
+
+	for hostRef in ${hosts[@]};do
+		eval host=('$'{$hostRef[@]})
+		hostname=${host[0]}
+		ip=${host[1]}
+		directorys=${host[*]:2}
+		
+		if [[ -e running/$hostname  ]];then
+			pid=`cat running/$hostname`	
+			ps -p $pid
+			if [[ $? == 0 ]];then
+				continue
+			fi
+		fi
+	
+		ping $ip -c 1 >> /dev/null
+		
+		#when $? is not 0(true), host down
+		if [[ $? != 0 ]];then
+		       	echo "$hostname not connect"	
+			continue
+		fi
+		
+		touch running/$hostname
+		mkdir -p $hostname
+		nohup /usr/local/lib/lan-sync/sync-unit ${host[@]} >> $hostname/log 2>&1 &
+	
+	done
+
+
+	sleep 3m
+
+done

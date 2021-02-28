@@ -1,0 +1,158 @@
+#!/bin/bash
+set -ou pipefail
+
+
+hostname=$1
+ip=$2
+directorys=${*:3}
+
+errorExit(){
+	printf "error,releasing resources ..."
+	for directory in $directorys; do
+		umount -l -t cifs .$directory 
+	done
+	wait
+	rm ../running/$hostname
+	
+	printf "ok\nexit as 1\n"
+	exit 1
+}
+0_exit(){
+	############# umount #############
+	echo "`date`""starting umount ... "
+	for directory in $directorys; do
+		umount -l -t cifs .$directory 
+	done
+	printf "ok\n"
+	
+	wait
+	echo "`date`""finish umount"
+	########### commit ########
+	
+	printf " git  commiting ...\n" 
+	git commit -m "`date`"
+	#if [[ $? == 0  ]];then
+	#	printf "ok\n"
+	#else
+	#	printf "not commit\n"
+	#fi
+	
+	
+	###### update files from git########
+
+	printf "update mirror from git ..."
+	git reset --hard HEAD
+	wait
+	if [[ $? != 0 ]];then
+		errorExit
+	fi
+
+	git clean -d -f 
+	wait
+	if [[ $? != 0 ]];then
+		errorExit
+	fi
+	printf "ok\n"
+	
+	
+	############ normal release and exit #############
+	
+	rm ../running/$hostname
+	
+	echo "`date`"":sync exit:0\n"
+	exit 0
+}
+
+
+sig_exit(){
+	echo "got sig, enter 0_exit ..."
+	#for directory in $directorys; do
+	#	umount -l -t cifs .$directory 
+	#done
+
+	#rm ../running/$hostname
+	
+	0_exit 
+
+}
+
+
+main(){
+	trap sig_exit TERM INT USR1 
+	echo "$$" > running/$hostname
+	for directory in $directorys; do
+		mkdir -p $hostname$directory
+		mount -t cifs //$ip$directory $hostname$directory -o user=leaf,pass=TXEnder
+	done
+	
+	
+	cd $hostname
+	
+	##only run when git not exist in this $hostname directory##
+	if [[ ! -d ".git" ]];
+	then
+		echo "not found sync system, building ..."
+		
+		printf "git init ..."
+		git init >> log 2>&1
+		if [[ $? != 0 ]];then
+			errorExit
+		fi
+	
+		printf "ok\n"
+		
+		printf "git config user.name $hostname ..."
+		git config user.name $hostname 
+		git config core.logallrefupdates false
+		if [[ $? != 0 ]]; then
+			errorExit
+		fi
+		
+		printf "ok\n"
+		printf ".gitignore\nlog\n" > .gitignore
+		
+		echo "sync system build finish "
+	
+	fi
+	
+	###################### end #########
+	echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+	echo "$hostname syncing ...."
+	
+	while true
+	do
+		printf "%s:git add ..." "`date`"
+		git add . --ignore-errors
+		
+		wait
+		if [[ $? == 0  ]];then
+			printf "ok\n"
+		else
+			printf "error happened\n"
+		fi
+		
+		printf "waiting for next add"
+		for i in {1..10}
+		do
+			printf "."
+			sleep 18
+		done
+		printf "\n"
+
+		ping $ip -c 1 >> /dev/null
+		if [[ $? != 0 ]];then
+		       	break
+		fi
+	done
+	
+	echo "host down, umount all directorys ..."
+
+	0_exit	
+}
+
+main
+
+
+
+
+

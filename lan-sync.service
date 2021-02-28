@@ -1,0 +1,22 @@
+#this file was the unit file for lan-sync service
+#to sync lan host files to current host-root_host
+#config file should be /usr/local/etc/lan-sync.conf
+
+[Unit]
+Description=lan-sync:service for syncing files of lan-host to current host
+#Documentation=man:smbd(8) man:samba(7) man:smb.conf(5)
+Wants=network-online.target
+After=network.target network-online.target nmb.service winbind.service
+
+[Service]
+#Type=simple
+#PIDFile=/run/smbd.pid
+#LimitNOFILE=16384
+#EnvironmentFile=/etc/conf.d/samba
+ExecStart=/usr/local/lib/lan-sync/lan-sync
+ExecReload=/bin/kill -TERM $MAINPID
+Restart=always
+
+
+[Install]
+WantedBy=multi-user.target
