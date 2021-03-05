@@ -28,7 +28,7 @@ Manually unistall may want to del following files(default install):
 systemd enable lan-sync
 ```
 Other commands about how to handle service 
-refer to [systemd](https:wiki.archlinux.org/index.php/systemd). 
+refer to [systemd](https://wiki.archlinux.org/index.php/systemd). 
 
 ## Config
 The default config is /etc/lan-sync.conf or /usr/local/etc/lan-sync.conf.
